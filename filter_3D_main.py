@@ -24,6 +24,7 @@ TEST_RESULT_SAVE_PATH = './test_result'
 if not os.path.exists(TEST_RESULT_SAVE_PATH):
     os.mkdir(TEST_RESULT_SAVE_PATH)
 mode = 'train'
+#train/test/showkernel
 if mode == 'train':
     patch_size = [40, 40, 40]
 elif mode == 'test':
@@ -67,7 +68,7 @@ if mode == 'train':
                                           train_data=data_epoch,
                                           train_label=data_label_epoch,
                                           real_epochs=real_epoch)
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 1 == 0:
             ind = np.arange(np.shape(data_epoch)[0])
             ind = np.random.permutation(ind)
             data_test = data_epoch[ind[:2], :, :, :, :]
