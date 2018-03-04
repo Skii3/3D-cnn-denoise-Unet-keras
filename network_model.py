@@ -101,15 +101,72 @@ class unet_3d_model(object):
                          data_format='channels_last'))
         model.add(BatchNormalization())
         model.add(Activation('relu'))
+
         # 10th layer
+        model.add(Conv3D(self.num_filter,
+                         self.kernel_size,
+                         strides=1,
+                         padding='same',
+                         data_format='channels_last'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+
+        # 11th layer
+        model.add(Conv3D(self.num_filter,
+                         self.kernel_size,
+                         strides=1,
+                         padding='same',
+                         data_format='channels_last'))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+
+        # 12th layer
         model.add(Conv3D(self.in_channel,
                          self.kernel_size,
                          strides=1,
                          padding='same',
                          data_format='channels_last'))
 
-        model.compile(loss='mean_squared_error', optimizer='Adam', metrics=[self.snr])
+        model.compile(loss=self.loss, optimizer='Adam', metrics=[self.snr,'mean_squared_error'])
         return model
+    def loss(self,y,y_true):
+        L1_loss_forward = tf.reduce_mean(tf.abs(y - y_true))
+
+        pixel_num = self.input_size[0] * self.input_size[1]
+        # output_flatten = tf.reduce_sum(output,axis=3)
+        # tvDiff_loss_forward = \
+        #    tf.reduce_mean(tf.image.total_variation(output_flatten)) / pixel_num * 200 / 10000
+
+        tv_lambda = 20000
+        for i in range(self.input_size[2]):
+            if i == 0:
+                tvDiff_loss_forward = \
+                    tf.reduce_mean(tf.image.total_variation(y[:, :, :, i, :])) / pixel_num * tv_lambda / 10000
+            else:
+                tvDiff_loss_forward = tvDiff_loss_forward + \
+                                      tf.reduce_mean(
+                                          tf.image.total_variation(y[:, :, :, i, :])) / pixel_num * 200 / 10000
+        for i in range(self.input_size[1]):
+            if i == 0:
+                tvDiff_loss_forward = \
+                    tf.reduce_mean(tf.image.total_variation(y[:, :, i, :, :])) / pixel_num * tv_lambda / 10000
+            else:
+                tvDiff_loss_forward = tvDiff_loss_forward + \
+                                      tf.reduce_mean(
+                                          tf.image.total_variation(y[:, :, i, :, :])) / pixel_num * 200 / 10000
+        for i in range(self.input_size[0]):
+            if i == 0:
+                tvDiff_loss_forward = \
+                    tf.reduce_mean(tf.image.total_variation(y[:, i, :, :, :])) / pixel_num * tv_lambda / 10000
+            else:
+                tvDiff_loss_forward = tvDiff_loss_forward + \
+                                      tf.reduce_mean(tf.image.total_variation(
+                                          y[:, i, :, :, :])) / pixel_num * tv_lambda / 10000
+
+        tvDiff_loss_forward = tvDiff_loss_forward / self.input_size[2] / self.input_size[1] / self.input_size[0]
+        loss = L1_loss_forward + tvDiff_loss_forward
+
+        return loss
 
     def snr(self,y,y_true):
         tmp_snr = tf.reduce_sum(tf.square(tf.abs(y_true))) / tf.reduce_sum(tf.square(tf.abs(y_true - y)))
