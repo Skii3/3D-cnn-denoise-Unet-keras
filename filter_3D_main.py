@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import random
 import os
 import scipy
+from keras.utils import plot_model
+from show_data import kernel_visuzlize
 #------------------ global settings ------------------#
 REL_FILE_PATH = './plutdata'
 SAVEPSNR = './savepsnr'
@@ -23,11 +25,14 @@ if not os.path.exists(TRAINDATA_SAVE_PATH):
 TEST_RESULT_SAVE_PATH = './test_result'
 if not os.path.exists(TEST_RESULT_SAVE_PATH):
     os.mkdir(TEST_RESULT_SAVE_PATH)
+kernel_path = './kernel_save'
+if not os.path.exists(kernel_path):
+    os.mkdir(kernel_path)
+#train/test/showkernel/model_visualize/kernel_visualize
 mode = 'train'
-#train/test/showkernel
 if mode == 'train':
     patch_size = [40, 40, 40]
-elif mode == 'test':
+else:
     patch_size = [876, 900, 4]
     batch_size = 1
 #------------------ global settings ------------------#
@@ -57,18 +62,12 @@ if mode == 'train':
         data_label_epoch = np.expand_dims(data_label_epoch, axis=4)
 
         train_data_size = np.shape(data_epoch)[0]  # 46656
+        if epoch == 0:
+            print '[*] kernel visualize'
+            kernel_visuzlize(model, kernel_path, epoch)
 
-
-        print "-------------------epoch:{}------------------".format(epoch+1)
-        real_epoch = 0
-        if (epoch+1)%10 == 0:
-            real_epoch = 1
-
-        model, hist = CNNclass.train_model(model=model,
-                                          train_data=data_epoch,
-                                          train_label=data_label_epoch,
-                                          real_epochs=real_epoch)
         if (epoch + 1) % 1 == 0:
+            print '[*] train result visualize'
             ind = np.arange(np.shape(data_epoch)[0])
             ind = np.random.permutation(ind)
             data_test = data_epoch[ind[:2], :, :, :, :]
@@ -76,11 +75,22 @@ if mode == 'train':
 
             denoise_test = CNNclass.test_model(model=model, test_data=data_test)
             for j in range(np.shape(data_test)[0]):
-                for i in range(4):
-                    indd = random.randint(0, np.shape(data_test)[3] - 1)
-                    temp1 = denoise_test[j, :, :, indd, 0]
-                    temp2 = data_test[j, :, :, indd, 0]
-                    temp3 = data_label_test[j, :, :, indd, 0]
+                for i in range(8):
+                    if i % 3 == 0:
+                        indd = random.randint(0, np.shape(data_test)[3] - 1)
+                        temp1 = denoise_test[j, :, :, indd, 0]
+                        temp2 = data_test[j, :, :, indd, 0]
+                        temp3 = data_label_test[j, :, :, indd, 0]
+                    elif i % 2 == 0:
+                        indd = random.randint(0, np.shape(data_test)[2] - 1)
+                        temp1 = denoise_test[j, :, indd, :, 0]
+                        temp2 = data_test[j, :, indd, :, 0]
+                        temp3 = data_label_test[j, :, indd, :, 0]
+                    else:
+                        indd = random.randint(0, np.shape(data_test)[1] - 1)
+                        temp1 = denoise_test[j, indd, :, :, 0]
+                        temp2 = data_test[j, indd, :, :, 0]
+                        temp3 = data_label_test[j, indd, :, :, 0]
                     if i == 0:
                         result = np.concatenate((temp1.squeeze(), temp2.squeeze(), temp3.squeeze()),
                                                 axis=1)
@@ -90,6 +100,18 @@ if mode == 'train':
                         result = np.concatenate((result, temp), axis=0)
             scipy.misc.imsave('./train_result' + '/denoise_noisedata_label%d.png' % epoch, result)
 
+        print "-------------------epoch:{}------------------".format(epoch+1)
+        real_epoch = 0
+        if (epoch+1)%2 == 0:
+            real_epoch = 1
+
+        model, hist = CNNclass.train_model(model=model,
+                                          train_data=data_epoch,
+                                          train_label=data_label_epoch,
+                                          real_epochs=real_epoch)
+        if real_epoch == 1:
+            print '[*] kernel visualize'
+            kernel_visuzlize(model, kernel_path, epoch)
 
 
 elif mode == 'test':
@@ -195,6 +217,10 @@ elif mode == 'test':
     '''
     print 'ok'
 
+elif mode == 'model_visualize':
+    plot_model(model, to_file='model.png')
+elif mode == 'kernel_visualize':
+    kernel_visuzlize(model,kernel_path,1)
 
 
 
