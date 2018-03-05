@@ -43,16 +43,16 @@ CNNclass = unet_3d_model(batch_size=batch_size,
                                  in_channel=1,
                                  num_filter=16,
                                  stride=[1,1,1],
-                                 epochs=5)
+                                 epochs=1)
 model = CNNclass.build_model()
 
-
 if mode == 'train':
+    model.save_weights('model_weights.h5', overwrite=True)
     for epoch in range(max_epochs):
         ind1 = random.randint(0, 99)
         ind2 = random.randint(0, 15)
         start_point = [ind1, ind1, ind2]
-        data_label_epoch, data_epoch, _ = load_data(rel_file_path=REL_FILE_PATH,
+        data_label_epoch, data_epoch, test_data = load_data(rel_file_path=REL_FILE_PATH,
                                                     start_point=start_point,
                                                     end_point=end_point,
                                                     patch_size=patch_size,
@@ -67,6 +67,7 @@ if mode == 'train':
             kernel_visuzlize(model, kernel_path, epoch)
 
         if (epoch + 1) % 1 == 0:
+            model.save_weights('model_weights.h5', overwrite=True)
             print '[*] train result visualize'
             ind = np.arange(np.shape(data_epoch)[0])
             ind = np.random.permutation(ind)
@@ -100,6 +101,41 @@ if mode == 'train':
                         result = np.concatenate((result, temp), axis=0)
             scipy.misc.imsave('./train_result' + '/denoise_noisedata_label%d.png' % epoch, result)
 
+            print "[*] test result visualize"
+            onedata = np.concatenate((test_data[0, :, :, :], test_data[1, :, :, :]), axis=2)  # 876*900*160
+            ind_test = random.randint(0,876-patch_size[0])
+            ind_test2 = random.randint(0,900-patch_size[1])
+            onedata_test = onedata[ind_test:ind_test+patch_size[0], ind_test2:ind_test2+patch_size[1], :patch_size[2]]
+
+            # normalize to [0,1]
+            #max_train_temp = np.max(onedata_test)
+            #min_train_temp = np.min(onedata_test)
+            #onedata_test = (onedata_test - min_train_temp) / (max_train_temp - min_train_temp)
+            onedata_test = (onedata_test - np.mean(onedata_test)) / np.std(onedata_test)
+            #std_train_temp = np.mean(onedata_test)
+            ref = np.max(onedata_test)
+            noise_level = random.randint(15, 20) * 1e-2
+            onedata_test_noise = np.random.normal(0, noise_level * ref, onedata_test.shape) + onedata_test
+
+            onedata_test_noise = np.reshape(onedata_test_noise,
+                                            [1, np.shape(onedata_test_noise)[0], np.shape(onedata_test_noise)[1],
+                                             np.shape(onedata_test_noise)[2], 1])
+            denoised = CNNclass.test_model(model=model, test_data=onedata_test_noise)
+
+
+            for i in range(8):
+                temp1 = np.squeeze(denoised[:, :, :, i, 0])
+                temp2 = np.squeeze(onedata_test_noise[:, :, :, i, 0])
+                temp3 = onedata_test[:, :, i]
+                if i == 0:
+                    result = np.concatenate((temp1, temp2, temp3),
+                                            axis=1)
+                else:
+                    temp = np.concatenate((temp1, temp2, temp3),
+                                          axis=1)
+                    result = np.concatenate((result, temp), axis=0)
+                    scipy.misc.imsave('./test_result' + '/test_denoise_noisedata_label%d.png' % epoch, result)
+
         print "-------------------epoch:{}------------------".format(epoch+1)
         real_epoch = 0
         if (epoch+1)%2 == 0:
@@ -126,14 +162,14 @@ elif mode == 'test':
     onedata_test = onedata[:, :, :patch_size[2]]
 
     # normalize to [0,1]
-    max_train_temp = np.max(onedata_test)
-    min_train_temp = np.min(onedata_test)
-    onedata_test = (onedata_test - min_train_temp) / (max_train_temp - min_train_temp)
-
+    #max_train_temp = np.max(onedata_test)
+    #min_train_temp = np.min(onedata_test)
+    #onedata_test = (onedata_test - min_train_temp) / (max_train_temp - min_train_temp)
+    onedata_test = (onedata_test - np.mean(onedata_test)) / np.std(onedata_test)
     std_train_temp = np.mean(onedata_test)
-
+    ref = np.max(onedata_test)
     noise_level = random.randint(15, 20) * 1e-2
-    onedata_test_noise = np.random.normal(0, noise_level * std_train_temp, onedata_test.shape) + onedata_test
+    onedata_test_noise = np.random.normal(0, noise_level * ref, onedata_test.shape) + onedata_test
 
     onedata_test_noise = np.reshape(onedata_test_noise,[1,np.shape(onedata_test_noise)[0],np.shape(onedata_test_noise)[1],np.shape(onedata_test_noise)[2],1])
     denoised = CNNclass.test_model(model=model, test_data=onedata_test_noise)
