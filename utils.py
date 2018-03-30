@@ -21,7 +21,7 @@ def load_data(rel_file_path = './traindata/',
     for file_name in files_name:
         data = sio.loadmat(file_name)
         if index == 1:
-            data_data = data['C']                # 256*256*256
+            data_data = data['C1']                # 256*256*256
         else:
             data_data = data['C2']
         index = index + 1
@@ -99,7 +99,7 @@ def load_data(rel_file_path = './traindata/',
                                                                    train_temp.shape)
                     '''
                     ref = np.max(train_temp)
-                    noise_level = random.randint(1,30) * 1e-2
+                    noise_level = random.randint(1,60) * 1e-3
                     noise_temp = np.random.normal(0, noise_level * ref, train_temp.shape) + train_temp
 
                     train_data_noise.append(noise_temp)

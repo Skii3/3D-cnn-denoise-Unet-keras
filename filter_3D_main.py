@@ -10,7 +10,7 @@ import scipy
 from keras.utils import plot_model
 from show_data import kernel_visuzlize
 #------------------ global settings ------------------#
-REL_FILE_PATH = './plutdata'
+REL_FILE_PATH = '../plutdata2'
 SAVEPSNR = './savepsnr'
 ind1 = random.randint(0,99)
 ind2 = random.randint(0,15)
@@ -29,7 +29,7 @@ kernel_path = './kernel_save'
 if not os.path.exists(kernel_path):
     os.mkdir(kernel_path)
 #train/test/showkernel/model_visualize/kernel_visualize
-mode = 'train'
+mode = 'test'
 if mode == 'train':
     patch_size = [40, 40, 40]
 else:
@@ -168,18 +168,56 @@ elif mode == 'test':
     onedata_test = (onedata_test - np.mean(onedata_test)) / np.std(onedata_test)
     std_train_temp = np.mean(onedata_test)
     ref = np.max(onedata_test)
-    noise_level = random.randint(15, 20) * 1e-2
-    onedata_test_noise = np.random.normal(0, noise_level * ref, onedata_test.shape) + onedata_test
 
-    onedata_test_noise = np.reshape(onedata_test_noise,[1,np.shape(onedata_test_noise)[0],np.shape(onedata_test_noise)[1],np.shape(onedata_test_noise)[2],1])
-    denoised = CNNclass.test_model(model=model, test_data=onedata_test_noise)
+    noise_num = 60
+    for noise_level in range(1,noise_num+1,1):
+        onedata_test_noise = np.random.normal(0, noise_level * ref * 1e-3, onedata_test.shape) + onedata_test
 
-    for i in range(patch_size[2]):
-        scipy.misc.imsave(TEST_RESULT_SAVE_PATH + '/%d_%.2flabel.png' % (i, noise_level), onedata_test[:, :, i])
+        onedata_test_noise = np.reshape(onedata_test_noise,[1,np.shape(onedata_test_noise)[0],np.shape(onedata_test_noise)[1],np.shape(onedata_test_noise)[2],1])
+        denoised = CNNclass.test_model(model=model, test_data=onedata_test_noise)
+
+        i = 0
+        denoised_one = np.squeeze(denoised[:, :, :, i, 0])
+        noise_one = np.squeeze(onedata_test_noise[:, :, :, i, 0])
+        target_one = np.squeeze(onedata_test[:, :, i])
+
+        tmp_snr0 = np.sum(np.square(np.abs(target_one))) / np.sum(np.square(np.abs(target_one - noise_one)))
+        input_snr = 10.0 * np.log(tmp_snr0) / np.log(10.0)  # 输入图片的snr
+
+        tmp_snr0 = np.sum(np.square(np.abs(target_one))) / np.sum(np.square(np.abs(target_one - denoised_one)))
+        output_snr = 10.0 * np.log(tmp_snr0) / np.log(10.0)  # 输入图片的snr
+
+        print 'noise level: %.2f, input_snr: %.4f, output_snr: %.4f, del_snr: %.4f' % (
+        noise_level, input_snr, output_snr, output_snr - input_snr)
+
+        Label = target_one
+        Denoise = denoised_one
+        Noisedata = noise_one
+
+        # find the minimum of maximum
+        max = np.max(Label)
+        if np.max(Denoise) < max:
+            max = np.max(Denoise)
+        if np.max(Noisedata) < max:
+            max = np.max(Noisedata)
+        # find the maximum of minimum
+        min = np.min(Label)
+        if np.min(Denoise) > min:
+            min = np.min(Denoise)
+        if np.min(Noisedata) > min:
+            min = np.min(Noisedata)
+        Label[Label > max] = max
+        Label[Label < min] = min
+        Denoise[Denoise > max] = max
+        Denoise[Denoise < min] = min
+        Noisedata[Noisedata > max] = max
+        Noisedata[Noisedata < min] = min
+        scipy.misc.imsave(TEST_RESULT_SAVE_PATH + '/%d_%.2flabel.png' % (i, noise_level), Label)
         scipy.misc.imsave(TEST_RESULT_SAVE_PATH + '/%d_%.2fmdenoise.png' % (i, noise_level),
-                          np.squeeze(denoised[:, :, :, i, 0]))
+                          Denoise)
         scipy.misc.imsave(TEST_RESULT_SAVE_PATH + '/%d_%.2fnoisedata.png' % (i, noise_level),
-                          np.squeeze(onedata_test_noise[:, :, :, i, 0]))
+                          Noisedata)
+
     '''
     onedata_test_extract = []
     for i in range(0, np.shape(onedata_test)[0] - patch_size[0] + 1, patch_size[0]):
@@ -251,8 +289,6 @@ elif mode == 'test':
         scipy.misc.imsave(TEST_RESULT_SAVE_PATH + '/%dmdenoised.png'%i, denoise_onedata[:,:,i])
         scipy.misc.imsave(TEST_RESULT_SAVE_PATH + '/%dnoisedata.png'%i, onedata_test_noise[:, :, i])
     '''
-    print 'ok'
-
 elif mode == 'model_visualize':
     plot_model(model, to_file='model.png')
 elif mode == 'kernel_visualize':
